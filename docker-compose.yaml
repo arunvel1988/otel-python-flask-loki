@@ -15,12 +15,29 @@ services:
     depends_on:
       - opentelemetry-collector-svc
 
+  # OpenTelemetry Collector
+  opentelemetry-collector-svc:
+    image: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:latest
+    container_name: opentelemetry-collector-svc
+    ports:
+      - "4318:4318"   # OTLP HTTP
+      - "4317:4317"   # OTLP gRPC
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    environment:
+      OTEL_LOG_LEVEL: debug
+    command:
+      - "--config=/etc/otel-collector-config.yaml"
+    depends_on:
+      - loki-svc
+      - tempo-svc
+
   # Loki (Log storage)
   loki-svc:
     image: grafana/loki:3.3.2
     container_name: loki-svc
     ports:
-      - "3100"
+      - "3100:3100"
     command: -config.expand-env=true -config.file=/etc/loki/local-config.yaml
     environment:
       MINIO_USER: ${MINIO_USER}
@@ -31,19 +48,17 @@ services:
     depends_on:
       - minio-svc
 
-  # Postgres for Grafana
-  postgres-grafana-svc:
-    image: postgres
-    container_name: postgres-grafana-svc
-    shm_size: 128mb
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_GRAFANA_DB}
+  # Tempo (Traces)
+  tempo-svc:
+    image: grafana/tempo:2.5.0
+    container_name: tempo-svc
     ports:
-      - "${POSTGRES_GRAFANA_PORT}:5432"
+      - "3200:3200"   # HTTP query port
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
     volumes:
-      - postgres_grafana_data:/var/lib/postgresql/data
+      - ./tempo.yaml:/etc/tempo.yaml
+      - tempo_data:/tempo
 
   # Grafana (Visualization)
   grafana-svc:
@@ -55,11 +70,12 @@ services:
       GF_DATABASE_TYPE: postgres
       GF_DATABASE_HOST: postgres-grafana-svc:5432
       GF_DATABASE_NAME: ${POSTGRES_GRAFANA_DB}
-      GF_DATABASE_USER: ${GF_SECURITY_ADMIN_USER}
-      GF_DATABASE_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD}
+      GF_DATABASE_USER: ${POSTGRES_USER}
+      GF_DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
     depends_on:
       - postgres-grafana-svc
       - loki-svc
+      - tempo-svc
     entrypoint:
       - sh
       - -euc
@@ -77,25 +93,33 @@ services:
           isDefault: true
           version: 1
           editable: false
+        - name: Tempo
+          type: tempo
+          access: proxy
+          orgId: 1
+          url: http://tempo-svc:3200
+          basicAuth: false
+          isDefault: false
+          version: 1
+          editable: true
         EOF
         /run.sh
 
-  # OpenTelemetry Collector
-  opentelemetry-collector-svc:
-    image: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:latest
-    container_name: opentelemetry-collector-svc
-    ports:
-      - "4318"
-    volumes:
-      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+  # Postgres for Grafana
+  postgres-grafana-svc:
+    image: postgres
+    container_name: postgres-grafana-svc
+    shm_size: 128mb
     environment:
-      OTEL_LOG_LEVEL: debug
-    command:
-      - "--config=/etc/otel-collector-config.yaml"
-    depends_on:
-      - loki-svc
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_GRAFANA_DB}
+    ports:
+      - "${POSTGRES_GRAFANA_PORT}:5432"
+    volumes:
+      - postgres_grafana_data:/var/lib/postgresql/data
 
-  # MiniO (Object Storage)
+  # MinIO (Loki object storage)
   minio-svc:
     image: minio/minio
     container_name: minio-svc
@@ -112,3 +136,4 @@ services:
 volumes:
   minio_data:
   postgres_grafana_data:
+  tempo_data:
