@@ -1,0 +1,114 @@
+version: "3.9"
+
+services:
+  # Python Flask App
+  flask-app:
+    build:
+      context: ./flask-app
+      dockerfile: Dockerfile
+    container_name: flask-app
+    environment:
+      FLASK_APP: app.py
+      FLASK_RUN_HOST: 0.0.0.0
+    ports:
+      - "${FLASK_APP_PORT}:5000"
+    depends_on:
+      - opentelemetry-collector-svc
+
+  # Loki (Log storage)
+  loki-svc:
+    image: grafana/loki:3.3.2
+    container_name: loki-svc
+    ports:
+      - "3100"
+    command: -config.expand-env=true -config.file=/etc/loki/local-config.yaml
+    environment:
+      MINIO_USER: ${MINIO_USER}
+      MINIO_PASSWORD: ${MINIO_PASSWORD}
+      MINIO_PORT: ${MINIO_PORT}
+    volumes:
+      - ./loki-config.yaml:/etc/loki/local-config.yaml
+    depends_on:
+      - minio-svc
+
+  # Postgres for Grafana
+  postgres-grafana-svc:
+    image: postgres
+    container_name: postgres-grafana-svc
+    shm_size: 128mb
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_GRAFANA_DB}
+    ports:
+      - "${POSTGRES_GRAFANA_PORT}:5432"
+    volumes:
+      - postgres_grafana_data:/var/lib/postgresql/data
+
+  # Grafana (Visualization)
+  grafana-svc:
+    image: grafana/grafana
+    container_name: grafana-svc
+    ports:
+      - "${GRAFANA_PORT}:3000"
+    environment:
+      GF_DATABASE_TYPE: postgres
+      GF_DATABASE_HOST: postgres-grafana-svc:5432
+      GF_DATABASE_NAME: ${POSTGRES_GRAFANA_DB}
+      GF_DATABASE_USER: ${GF_SECURITY_ADMIN_USER}
+      GF_DATABASE_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD}
+    depends_on:
+      - postgres-grafana-svc
+      - loki-svc
+    entrypoint:
+      - sh
+      - -euc
+      - |
+        mkdir -p /etc/grafana/provisioning/datasources
+        cat <<EOF > /etc/grafana/provisioning/datasources/ds.yaml
+        apiVersion: 1
+        datasources:
+        - name: Loki
+          type: loki
+          access: proxy
+          orgId: 1
+          url: http://loki-svc:3100
+          basicAuth: false
+          isDefault: true
+          version: 1
+          editable: false
+        EOF
+        /run.sh
+
+  # OpenTelemetry Collector
+  opentelemetry-collector-svc:
+    image: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:latest
+    container_name: opentelemetry-collector-svc
+    ports:
+      - "4318"
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    environment:
+      OTEL_LOG_LEVEL: debug
+    command:
+      - "--config=/etc/otel-collector-config.yaml"
+    depends_on:
+      - loki-svc
+
+  # MiniO (Object Storage)
+  minio-svc:
+    image: minio/minio
+    container_name: minio-svc
+    ports:
+      - "${MINIO_PORT}:9000"
+      - "${MINIO_CONSOLE_PORT}:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD}
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+
+volumes:
+  minio_data:
+  postgres_grafana_data:
