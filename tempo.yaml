@@ -18,7 +18,4 @@ storage:
   trace:
     backend: local
     local:
-      path: /var/tempo
-
-compactor:
-  compaction_interval: 1h
+      path: /tempo
