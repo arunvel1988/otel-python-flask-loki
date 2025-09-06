@@ -58,7 +58,7 @@ services:
       - "4318:4318"   # OTLP HTTP
     volumes:
       - ./tempo.yaml:/etc/tempo/tempo.yaml
-      - tempo_data:/tempo
+      - ./tempo_data:/var/tempo
     command: ["-config.file=/etc/tempo/tempo.yaml"]
 
   # Grafana (Visualization)
@@ -137,4 +137,5 @@ services:
 volumes:
   minio_data:
   postgres_grafana_data:
-  tempo_data:
+
+ubuntu:~/otel-python-flask
