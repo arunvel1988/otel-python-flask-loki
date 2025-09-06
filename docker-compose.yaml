@@ -57,8 +57,9 @@ services:
       - "4317:4317"   # OTLP gRPC
       - "4318:4318"   # OTLP HTTP
     volumes:
-      - ./tempo.yaml:/etc/tempo.yaml
+      - ./tempo.yaml:/etc/tempo/tempo.yaml
       - tempo_data:/tempo
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
 
   # Grafana (Visualization)
   grafana-svc:
