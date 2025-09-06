@@ -1,12 +1,24 @@
-tempo-svc:
-  image: grafana/tempo:2.5.0
-  container_name: tempo-svc
-  ports:
-    - "3200:3200"
-    - "4317:4317"
-    - "4318:4318"
-  volumes:
-    - ./tempo.yaml:/etc/tempo.yaml
-    - tempo_data:/tempo
-  command:
-    - "--config.file=/etc/tempo.yaml"
+server:
+  http_listen_port: 3200
+  grpc_listen_port: 4317
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+
+distributor:
+  receivers: [otlp]
+
+ingester:
+  trace_idle_period: 5m
+
+storage:
+  trace:
+    backend: local
+    local:
+      path: /var/tempo
+
+compactor:
+  compaction_interval: 1h
