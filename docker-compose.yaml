@@ -138,4 +138,4 @@ volumes:
   minio_data:
   postgres_grafana_data:
 
-ubuntu:~/otel-python-flask
+
