@@ -58,7 +58,7 @@ services:
       - "4318:4318"   # OTLP HTTP
     volumes:
       - ./tempo.yaml:/etc/tempo/tempo.yaml
-      - ./tempo_data:/var/tempo
+      - ./tempo_data:/tmp/tempo
     command: ["-config.file=/etc/tempo/tempo.yaml"]
 
   # Grafana (Visualization)
