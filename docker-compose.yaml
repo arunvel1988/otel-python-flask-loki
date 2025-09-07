@@ -54,8 +54,7 @@ services:
     container_name: tempo-svc
     ports:
       - "3200:3200"   # HTTP query port
-      - "4317:4317"   # OTLP gRPC
-      - "4318:4318"   # OTLP HTTP
+ 
     volumes:
       - ./tempo.yaml:/etc/tempo/tempo.yaml
       - ./tempo_data:/tmp/tempo
