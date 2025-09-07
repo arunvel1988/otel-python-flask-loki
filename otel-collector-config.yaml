@@ -15,7 +15,7 @@ exporters:
     tls:
       insecure: true
   otlp/tempo:                # <-- changed to gRPC exporter
-    endpoint: tempo-svc:3200
+    endpoint: tempo-svc:4317
     tls:
       insecure: true
   debug:
