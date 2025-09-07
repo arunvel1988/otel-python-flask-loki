@@ -97,7 +97,7 @@ services:
           type: tempo
           access: proxy
           orgId: 1
-          url: http://tempo-svc:3200
+          url: http://tempo-svc:9095
           basicAuth: false
           isDefault: false
           version: 1
