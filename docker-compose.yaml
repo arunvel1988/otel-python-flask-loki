@@ -22,6 +22,7 @@ services:
     ports:
       - "4318:4318"   # OTLP HTTP
       - "4317:4317"   # OTLP gRPC
+      - "9464:9464"   # Prometheus metrics scrape
     volumes:
       - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
     environment:
@@ -54,11 +55,26 @@ services:
     container_name: tempo-svc
     ports:
       - "3200:3200"   # HTTP query port
- 
     volumes:
       - ./tempo.yaml:/etc/tempo/tempo.yaml
       - ./tempo_data:/tmp/tempo
     command: ["-config.file=/etc/tempo/tempo.yaml"]
+
+  # Prometheus (Metrics)
+  prometheus-svc:
+    image: prom/prometheus:latest
+    container_name: prometheus-svc
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+    depends_on:
+      - opentelemetry-collector-svc
 
   # Grafana (Visualization)
   grafana-svc:
@@ -76,6 +92,7 @@ services:
       - postgres-grafana-svc
       - loki-svc
       - tempo-svc
+      - prometheus-svc
     entrypoint:
       - sh
       - -euc
@@ -98,6 +115,15 @@ services:
           access: proxy
           orgId: 1
           url: http://tempo-svc:3200
+          basicAuth: false
+          isDefault: false
+          version: 1
+          editable: true
+        - name: Prometheus
+          type: prometheus
+          access: proxy
+          orgId: 1
+          url: http://prometheus-svc:9090
           basicAuth: false
           isDefault: false
           version: 1
@@ -136,4 +162,4 @@ services:
 volumes:
   minio_data:
   postgres_grafana_data:
-
+  tempo_data:
