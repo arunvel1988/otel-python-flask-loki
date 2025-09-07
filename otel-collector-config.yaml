@@ -10,15 +10,24 @@ processors:
   batch:
 
 exporters:
+  # --- Logs to Loki ---
   otlphttp/loki:
     endpoint: http://loki-svc:3100/otlp
     tls:
       insecure: true
-  otlp/tempo:                # <-- changed to gRPC exporter
+
+  # --- Traces to Tempo ---
+  otlp/tempo:
     endpoint: tempo-svc:4317
     tls:
       insecure: true
-  debug:
+
+  # --- Metrics to Prometheus ---
+  prometheus:
+    endpoint: 0.0.0.0:9464   # Prometheus will scrape this
+    namespace: flask_app     # prefix for metric names
+
+  debug: {}
 
 service:
   pipelines:
@@ -26,7 +35,13 @@ service:
       receivers: [otlp]
       processors: [batch]
       exporters: [otlphttp/loki, debug]
+
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [otlp/tempo, debug]   # <-- using gRPC exporter
+      exporters: [otlp/tempo, debug]
+
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheus, debug]
