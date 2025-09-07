@@ -1,4 +1,6 @@
 from flask import Flask
+from flask import Flask, render_template_string
+
 import logging
 import time
 import random
