@@ -14,8 +14,10 @@ exporters:
     endpoint: http://loki-svc:3100/otlp
     tls:
       insecure: true
-  otlphttp/tempo:
-    endpoint: tempo-svc:9095
+  otlp/tempo:                # <-- changed to gRPC exporter
+    endpoint: tempo-svc:3200
+    tls:
+      insecure: true
   debug:
 
 service:
@@ -27,4 +29,4 @@ service:
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [otlphttp/tempo, debug]
+      exporters: [otlp/tempo, debug]   # <-- using gRPC exporter
