@@ -1,0 +1,4 @@
+mkdir -p ./tempo_data/wal ./tempo_data/blocks
+sudo chmod -R 777 ./tempo_data
+docker-compose --env-file=docker-compose-config.txt up --build
+docker-compose --env-file=docker-compose-config.txt down -v
