@@ -1,38 +1,42 @@
-from flask import Flask
-from flask import Flask, render_template_string
-
+from flask import Flask, render_template_string, request
 import logging
 import time
 import random
 
-# OpenTelemetry core
-from opentelemetry import trace
+# ------------------------
+# OpenTelemetry Core Setup
+# ------------------------
+from opentelemetry import trace, metrics
 from opentelemetry.sdk.resources import Resource
+
+# Traces
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 
-# Logging
+# Logs
 from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
 
-# OTLP Trace Exporter
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+# Metrics
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
 
 # Flask instrumentation
 from opentelemetry.instrumentation.flask import FlaskInstrumentor
 
 # ------------------------
-# OpenTelemetry Setup
+# Resource (common labels)
 # ------------------------
 resource = Resource(attributes={"service.name": "flask-app"})
 
 # ---- Traces ----
 trace_provider = TracerProvider(resource=resource)
 trace.set_tracer_provider(trace_provider)
-
 otlp_trace_exporter = OTLPSpanExporter(
-    endpoint="http://opentelemetry-collector-svc:4318/v1/traces",
+    endpoint="http://opentelemetry-collector-svc:4318/v1/traces"
 )
 trace_provider.add_span_processor(BatchSpanProcessor(otlp_trace_exporter))
 tracer = trace.get_tracer(__name__)
@@ -40,13 +44,32 @@ tracer = trace.get_tracer(__name__)
 # ---- Logs ----
 logger_provider = LoggerProvider(resource=resource)
 otlp_log_exporter = OTLPLogExporter(
-    endpoint="http://opentelemetry-collector-svc:4318/v1/logs",
+    endpoint="http://opentelemetry-collector-svc:4318/v1/logs"
 )
 logger_provider.add_log_record_processor(BatchLogRecordProcessor(otlp_log_exporter))
-
 otel_handler = LoggingHandler(level=logging.INFO, logger_provider=logger_provider)
 logging.getLogger().addHandler(otel_handler)
 logging.getLogger().setLevel(logging.INFO)
+
+# ---- Metrics ----
+metric_exporter = OTLPMetricExporter(
+    endpoint="http://opentelemetry-collector-svc:4318/v1/metrics"
+)
+reader = PeriodicExportingMetricReader(metric_exporter)
+provider = MeterProvider(resource=resource, metric_readers=[reader])
+metrics.set_meter_provider(provider)
+meter = metrics.get_meter(__name__)
+
+# Example metrics
+request_counter = meter.create_counter(
+    name="http_requests_total",
+    description="Number of HTTP requests processed",
+)
+
+latency_histogram = meter.create_histogram(
+    name="http_request_duration_seconds",
+    description="Request duration in seconds",
+)
 
 # ------------------------
 # Flask App
@@ -54,78 +77,58 @@ logging.getLogger().setLevel(logging.INFO)
 app = Flask(__name__)
 FlaskInstrumentor().instrument_app(app)
 
+@app.before_request
+def before_request():
+    request.start_time = time.time()
+
+@app.after_request
+def after_request(response):
+    duration = time.time() - request.start_time
+    request_counter.add(1, {"method": request.method, "endpoint": request.path})
+    latency_histogram.record(duration, {"method": request.method, "endpoint": request.path})
+    return response
+
 # ------------------------
 # Demo Endpoints
 # ------------------------
-
-
-##########################################################################
-
 @app.route("/")
 def hello():
     with tracer.start_as_current_span("hello-span"):
         logging.info("Received request at / endpoint")
-        
-        # Fancy HTML response with OpenTelemetry info
         html = """
         <html>
-        <head>
-            <title>Flask + OpenTelemetry Demo</title>
-            <style>
-                body { font-family: Arial, sans-serif; background-color: #f0f8ff; margin: 40px; }
-                h1 { color: #2c3e50; }
-                p { font-size: 1.1em; color: #34495e; }
-                a { text-decoration: none; color: #2980b9; font-weight: bold; }
-                a:hover { color: #e74c3c; }
-                .container { background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
-            </style>
-        </head>
+        <head><title>Flask + OpenTelemetry Demo</title></head>
         <body>
-            <div class="container">
-                <h1>🚀 Welcome to Flask + OpenTelemetry Demo!</h1>
-                <p>This endpoint is instrumented with <strong>OpenTelemetry</strong>:</p>
-                <ul>
-                    <li><strong>Trace:</strong> Groups all operations for a request.</li>
-                    <li><strong>Span:</strong> Measures individual operations within a trace (e.g., this page rendering).</li>
-                    <li><strong>Logs:</strong> Recorded events sent along with traces to observability backend.</li>
-                </ul>
-                <p>Explore other demo endpoints:</p>
-                <ul>
-                    <li><a href="/db">/db</a> - Simulates a database operation.</li>
-                    <li><a href="/compute">/compute</a> - Performs a CPU-intensive computation.</li>
-                    <li><a href="/error">/error</a> - Simulates an error for tracing and logging.</li>
-                </ul>
-                <p>All traces and logs from these endpoints are exported to your configured <strong>OpenTelemetry Collector → Tempo</strong> pipeline, viewable in Grafana.</p>
-                <p>Enjoy exploring distributed tracing! 🌟</p>
-            </div>
+            <h1>Flask + OpenTelemetry Demo</h1>
+            <ul>
+                <li><a href="/db">/db</a> - Simulates a database operation.</li>
+                <li><a href="/compute">/compute</a> - Performs a CPU-intensive computation.</li>
+                <li><a href="/error">/error</a> - Simulates an error.</li>
+            </ul>
+            <p>Now exporting: <b>Traces</b>, <b>Logs</b>, <b>Metrics</b> → OTEL Collector → Tempo/Loki/Prometheus</p>
         </body>
         </html>
         """
         return render_template_string(html)
 
-
-
-
-####################################################################################
-
 @app.route("/compute")
 def compute():
-    with tracer.start_as_current_span("compute-span") as span:
+    with tracer.start_as_current_span("compute-span"):
         logging.info("Start compute simulation")
         result = sum(i * i for i in range(1, 1000))
-        time.sleep(random.uniform(0.1, 0.5))  # simulate work
+        time.sleep(random.uniform(0.1, 0.5))
         logging.info(f"Compute result: {result}")
         return f"Compute done! Result: {result}"
 
 @app.route("/db")
 def fake_db():
-    with tracer.start_as_current_span("db-span") as span:
+    with tracer.start_as_current_span("db-span"):
         logging.info("Start fake DB operation")
         with tracer.start_as_current_span("query-span"):
-            time.sleep(random.uniform(0.1, 0.3))  # simulate DB query
+            time.sleep(random.uniform(0.1, 0.3))
             logging.info("DB query completed")
         with tracer.start_as_current_span("update-span"):
-            time.sleep(random.uniform(0.1, 0.2))  # simulate DB update
+            time.sleep(random.uniform(0.1, 0.2))
             logging.info("DB update completed")
         return "DB operation executed!"
 
