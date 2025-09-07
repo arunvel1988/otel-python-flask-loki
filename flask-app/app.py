@@ -56,11 +56,55 @@ FlaskInstrumentor().instrument_app(app)
 # Demo Endpoints
 # ------------------------
 
+
+##########################################################################
+
 @app.route("/")
 def hello():
     with tracer.start_as_current_span("hello-span"):
         logging.info("Received request at / endpoint")
-        return "Hello from Flask + OpenTelemetry! ✅ Traces and Logs are exported."
+        
+        # Fancy HTML response with OpenTelemetry info
+        html = """
+        <html>
+        <head>
+            <title>Flask + OpenTelemetry Demo</title>
+            <style>
+                body { font-family: Arial, sans-serif; background-color: #f0f8ff; margin: 40px; }
+                h1 { color: #2c3e50; }
+                p { font-size: 1.1em; color: #34495e; }
+                a { text-decoration: none; color: #2980b9; font-weight: bold; }
+                a:hover { color: #e74c3c; }
+                .container { background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>🚀 Welcome to Flask + OpenTelemetry Demo!</h1>
+                <p>This endpoint is instrumented with <strong>OpenTelemetry</strong>:</p>
+                <ul>
+                    <li><strong>Trace:</strong> Groups all operations for a request.</li>
+                    <li><strong>Span:</strong> Measures individual operations within a trace (e.g., this page rendering).</li>
+                    <li><strong>Logs:</strong> Recorded events sent along with traces to observability backend.</li>
+                </ul>
+                <p>Explore other demo endpoints:</p>
+                <ul>
+                    <li><a href="/db">/db</a> - Simulates a database operation.</li>
+                    <li><a href="/compute">/compute</a> - Performs a CPU-intensive computation.</li>
+                    <li><a href="/error">/error</a> - Simulates an error for tracing and logging.</li>
+                </ul>
+                <p>All traces and logs from these endpoints are exported to your configured <strong>OpenTelemetry Collector → Tempo</strong> pipeline, viewable in Grafana.</p>
+                <p>Enjoy exploring distributed tracing! 🌟</p>
+            </div>
+        </body>
+        </html>
+        """
+        return render_template_string(html)
+
+
+
+
+####################################################################################
 
 @app.route("/compute")
 def compute():
@@ -81,7 +125,7 @@ def fake_db():
         with tracer.start_as_current_span("update-span"):
             time.sleep(random.uniform(0.1, 0.2))  # simulate DB update
             logging.info("DB update completed")
-        return "Fake DB operation done!"
+        return "DB operation executed!"
 
 @app.route("/error")
 def error_route():
