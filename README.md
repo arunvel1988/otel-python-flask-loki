@@ -1,2 +1,2 @@
-# otel-dotnet-loki
-otel-dotnet-loki
+# otel-python-loki
+
