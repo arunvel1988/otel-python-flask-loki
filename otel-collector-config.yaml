@@ -10,15 +10,18 @@ processors:
   batch:
 
 exporters:
+  # Logs to Elasticsearch
   elasticsearch:
     endpoints: ["http://elasticsearch-svc:9200"]
     index: "otel-logs-%{+yyyy.MM.dd}"
 
-  jaeger:
+  # Traces to Jaeger using Thrift over gRPC
+  jaeger/thrift:
     endpoint: jaeger-svc:14250
     tls:
       insecure: true
 
+  # Metrics to Prometheus
   prometheus:
     endpoint: 0.0.0.0:9464
     namespace: flask_app
@@ -35,7 +38,7 @@ service:
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [jaeger, debug]
+      exporters: [jaeger/thrift, debug]
 
     metrics:
       receivers: [otlp]
