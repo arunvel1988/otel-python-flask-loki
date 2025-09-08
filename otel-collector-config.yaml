@@ -10,10 +10,9 @@ processors:
   batch:
 
 exporters:
-  # Logs to Elasticsearch
+  # Logs to Elasticsearch (lightweight demo)
   elasticsearch:
     endpoints: ["http://elasticsearch-svc:9200"]
-    index: "otel-logs-%{+yyyy.MM.dd}"
 
   # Traces to Jaeger via Zipkin HTTP
   zipkin:
