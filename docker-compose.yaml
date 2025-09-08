@@ -30,35 +30,44 @@ services:
     command:
       - "--config=/etc/otel-collector-config.yaml"
     depends_on:
-      - loki-svc
-      - tempo-svc
+      - elasticsearch-svc
+      - jaeger-svc
 
-  # Loki (Log storage)
-  loki-svc:
-    image: grafana/loki:3.3.2
-    container_name: loki-svc
-    ports:
-      - "3100:3100"
-    command: -config.expand-env=true -config.file=/etc/loki/local-config.yaml
+  # Elasticsearch (Log storage for ELK)
+  elasticsearch-svc:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.0
+    container_name: elasticsearch-svc
     environment:
-      MINIO_USER: ${MINIO_USER}
-      MINIO_PASSWORD: ${MINIO_PASSWORD}
-      MINIO_PORT: ${MINIO_PORT}
-    volumes:
-      - ./loki-config.yaml:/etc/loki/local-config.yaml
-    depends_on:
-      - minio-svc
-
-  # Tempo (Traces)
-  tempo-svc:
-    image: grafana/tempo:2.5.0
-    container_name: tempo-svc
+      - discovery.type=single-node
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+      - xpack.security.enabled=false
     ports:
-      - "3200:3200"   # HTTP query port
+      - "9200:9200"
     volumes:
-      - ./tempo.yaml:/etc/tempo/tempo.yaml
-      - ./tempo_data:/tmp/tempo
-    command: ["-config.file=/etc/tempo/tempo.yaml"]
+      - elasticsearch_data:/usr/share/elasticsearch/data
+
+  # Kibana (Visualization for logs)
+  kibana-svc:
+    image: docker.elastic.co/kibana/kibana:8.12.0
+    container_name: kibana-svc
+    ports:
+      - "5601:5601"
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch-svc:9200
+    depends_on:
+      - elasticsearch-svc
+
+  # Jaeger (Traces)
+  jaeger-svc:
+    image: jaegertracing/all-in-one:1.44
+    container_name: jaeger-svc
+    ports:
+      - "16686:16686" # Jaeger UI
+      - "14250:14250" # gRPC
+      - "14268:14268" # HTTP collector
+      - "14269:14269" # optional
+    environment:
+      COLLECTOR_ZIPKIN_HTTP_PORT: 9411
 
   # Prometheus (Metrics)
   prometheus-svc:
@@ -90,8 +99,8 @@ services:
       GF_DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
     depends_on:
       - postgres-grafana-svc
-      - loki-svc
-      - tempo-svc
+      - elasticsearch-svc
+      - jaeger-svc
       - prometheus-svc
     entrypoint:
       - sh
@@ -101,33 +110,24 @@ services:
         cat <<EOF > /etc/grafana/provisioning/datasources/ds.yaml
         apiVersion: 1
         datasources:
-        - name: Loki
-          type: loki
+        - name: Elasticsearch
+          type: elasticsearch
           access: proxy
           orgId: 1
-          url: http://loki-svc:3100
-          basicAuth: false
+          url: http://elasticsearch-svc:9200
           isDefault: true
-          version: 1
-          editable: false
-        - name: Tempo
-          type: tempo
+        - name: Jaeger
+          type: jaeger
           access: proxy
           orgId: 1
-          url: http://tempo-svc:3200
-          basicAuth: false
+          url: http://jaeger-svc:16686
           isDefault: false
-          version: 1
-          editable: true
         - name: Prometheus
           type: prometheus
           access: proxy
           orgId: 1
           url: http://prometheus-svc:9090
-          basicAuth: false
           isDefault: false
-          version: 1
-          editable: true
         EOF
         /run.sh
 
@@ -145,21 +145,6 @@ services:
     volumes:
       - postgres_grafana_data:/var/lib/postgresql/data
 
-  # MinIO (Loki object storage)
-  minio-svc:
-    image: minio/minio
-    container_name: minio-svc
-    ports:
-      - "${MINIO_PORT}:9000"
-      - "${MINIO_CONSOLE_PORT}:9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD}
-    command: server /data --console-address ":9001"
-    volumes:
-      - minio_data:/data
-
 volumes:
-  minio_data:
+  elasticsearch_data:
   postgres_grafana_data:
-  tempo_data:
