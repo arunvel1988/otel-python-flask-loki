@@ -15,11 +15,9 @@ exporters:
     endpoints: ["http://elasticsearch-svc:9200"]
     index: "otel-logs-%{+yyyy.MM.dd}"
 
-  # Traces to Jaeger using Thrift over gRPC
-  jaeger/thrift:
-    endpoint: jaeger-svc:14250
-    tls:
-      insecure: true
+  # Traces to Jaeger via Zipkin HTTP
+  zipkin:
+    endpoint: "http://jaeger-svc:9411/api/v2/spans"
 
   # Metrics to Prometheus
   prometheus:
@@ -38,7 +36,7 @@ service:
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [jaeger/thrift, debug]
+      exporters: [zipkin, debug]
 
     metrics:
       receivers: [otlp]
