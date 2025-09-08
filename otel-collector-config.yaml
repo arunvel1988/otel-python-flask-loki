@@ -10,21 +10,18 @@ processors:
   batch:
 
 exporters:
-  # --- Logs to Elasticsearch (ELK) ---
   elasticsearch:
-    endpoints: ["http://elasticsearch:9200"]
-    index: "otel-logs"
+    endpoints: ["http://elasticsearch-svc:9200"]
+    index: "otel-logs-%{+yyyy.MM.dd}"
 
-  # --- Traces to Jaeger ---
   jaeger:
-    endpoint: jaeger:14250
+    endpoint: jaeger-svc:14250
     tls:
       insecure: true
 
-  # --- Metrics to Prometheus ---
   prometheus:
-    endpoint: 0.0.0.0:9464   # Prometheus will scrape this
-    namespace: flask_app     # prefix for metric names
+    endpoint: 0.0.0.0:9464
+    namespace: flask_app
 
   debug: {}
 
