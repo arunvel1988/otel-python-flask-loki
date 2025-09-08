@@ -71,6 +71,31 @@ latency_histogram = meter.create_histogram(
     description="Request duration in seconds",
 )
 
+# --- Custom E-commerce Metrics ---
+orders_counter = meter.create_counter(
+    name="orders_total",
+    description="Number of successfully placed orders",
+    unit="1",
+)
+
+payment_failures = meter.create_counter(
+    name="payment_failures_total",
+    description="Number of failed payment attempts",
+    unit="1",
+)
+
+cart_size_histogram = meter.create_histogram(
+    name="cart_size",
+    description="Number of items in cart during checkout",
+    unit="items",
+)
+
+revenue_counter = meter.create_counter(
+    name="revenue_total",
+    description="Total revenue generated",
+    unit="USD",
+)
+
 # ------------------------
 # Flask App
 # ------------------------
@@ -104,6 +129,10 @@ def hello():
                 <li><a href="/db">/db</a> - Simulates a database operation.</li>
                 <li><a href="/compute">/compute</a> - Performs a CPU-intensive computation.</li>
                 <li><a href="/error">/error</a> - Simulates an error.</li>
+                <li><a href="/order">/order</a> - Simulates placing an order.</li>
+                <li><a href="/pay">/pay</a> - Simulates a payment attempt.</li>
+                <li><a href="/checkout">/checkout</a> - Simulates a checkout with cart size.</li>
+                <li><a href="/buy">/buy</a> - Simulates a purchase with revenue.</li>
             </ul>
             <p>Now exporting: <b>Traces</b>, <b>Logs</b>, <b>Metrics</b> → OTEL Collector → Tempo/Loki/Prometheus</p>
         </body>
@@ -140,6 +169,41 @@ def error_route():
         except ZeroDivisionError as e:
             logging.error(f"An error occurred: {e}")
             return "Error route triggered, check OTEL logs.", 500
+
+@app.route("/order")
+def order():
+    with tracer.start_as_current_span("order-span"):
+        processing_time = random.uniform(0.2, 1.0)
+        time.sleep(processing_time)
+        orders_counter.add(1, {"status": "success"})
+        logging.info("Order placed successfully")
+        return "Order placed!"
+
+@app.route("/pay")
+def pay():
+    with tracer.start_as_current_span("payment-span"):
+        if random.choice([True, False]):  # 50% fail rate
+            payment_failures.add(1, {"provider": "BankX"})
+            logging.error("Payment failed with BankX")
+            return "Payment failed", 500
+        logging.info("Payment succeeded with BankX")
+        return "Payment success!"
+
+@app.route("/checkout")
+def checkout():
+    with tracer.start_as_current_span("checkout-span"):
+        cart_size = random.randint(1, 10)
+        cart_size_histogram.record(cart_size, {"currency": "USD"})
+        logging.info(f"Checkout with {cart_size} items")
+        return f"Checkout complete with {cart_size} items!"
+
+@app.route("/buy")
+def buy():
+    with tracer.start_as_current_span("buy-span"):
+        amount = random.choice([100, 200, 500])
+        revenue_counter.add(amount, {"currency": "USD"})
+        logging.info(f"Purchase completed: ${amount}")
+        return f"Purchase complete! Amount: ${amount}"
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
