@@ -10,15 +10,14 @@ processors:
   batch:
 
 exporters:
-  # --- Logs to Loki ---
-  otlphttp/loki:
-    endpoint: http://loki-svc:3100/otlp
-    tls:
-      insecure: true
+  # --- Logs to Elasticsearch (ELK) ---
+  elasticsearch:
+    endpoints: ["http://elasticsearch:9200"]
+    index: "otel-logs"
 
-  # --- Traces to Tempo ---
-  otlp/tempo:
-    endpoint: tempo-svc:4317
+  # --- Traces to Jaeger ---
+  jaeger:
+    endpoint: jaeger:14250
     tls:
       insecure: true
 
@@ -34,12 +33,12 @@ service:
     logs:
       receivers: [otlp]
       processors: [batch]
-      exporters: [otlphttp/loki, debug]
+      exporters: [elasticsearch, debug]
 
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [otlp/tempo, debug]
+      exporters: [jaeger, debug]
 
     metrics:
       receivers: [otlp]
