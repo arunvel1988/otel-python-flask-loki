@@ -1,0 +1,112 @@
+{
+  "id": null,
+  "title": "OpenTelemetry E-commerce Dashboard",
+  "tags": ["otel", "flask", "ecommerce"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Orders Over Time",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(increase(orders_total[5m]))",
+          "legendFormat": "Orders",
+          "interval": ""
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Revenue Over Time (USD)",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(increase(revenue_total[5m]))",
+          "legendFormat": "Revenue",
+          "interval": ""
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Payment Failures",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(increase(payment_failures_total[5m]))",
+          "legendFormat": "Failures",
+          "interval": ""
+        }
+      ]
+    },
+    {
+      "type": "histogram",
+      "title": "Checkout Cart Size Distribution",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum(rate(cart_size_bucket[5m])) by (le))",
+          "legendFormat": "p50",
+          "interval": ""
+        },
+        {
+          "expr": "histogram_quantile(0.9, sum(rate(cart_size_bucket[5m])) by (le))",
+          "legendFormat": "p90",
+          "interval": ""
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "HTTP Requests per Endpoint",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(increase(http_requests_total[5m])) by (endpoint)",
+          "legendFormat": "{{endpoint}}",
+          "interval": ""
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "HTTP Request Latency (p50, p90)",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p50",
+          "interval": ""
+        },
+        {
+          "expr": "histogram_quantile(0.9, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p90",
+          "interval": ""
+        }
+      ]
+    },
+    {
+      "type": "logs",
+      "title": "Application Logs (Correlated with Traces)",
+      "datasource": "Loki",
+      "targets": [
+        {
+          "expr": "{container_name=\"flask-app\"}"
+        }
+      ]
+    },
+    {
+      "type": "trace",
+      "title": "Traces (Tempo)",
+      "datasource": "Tempo",
+      "targets": [
+        {
+          "query": ""
+        }
+      ]
+    }
+  ]
+}
